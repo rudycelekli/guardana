@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
-  pull_request:
-    branches: ["**"]
+    branches: ["validation/site-repository-link-fragments-20261010"]
 
 # Least privilege: without this block the workflow inherits the repository default,
 # which can be read-write, and a compromised action would hold a token that can push.
@@ -16,6 +14,7 @@ jobs:
     # Ubuntu 26.04's archive carries no postgresql-client-16, and pg_dump has to match
     # the postgres:16 service below; moving this job means moving both together.
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -53,6 +52,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: 79124bf4b3e38028fa7e3bc0b710a0b4528097d6
+          persist-credentials: false
 
       # Version 16 on purpose: it has to match the service container above. A dump
       # taken by newer client tools does not restore into an older server — it
@@ -104,15 +106,22 @@ jobs:
       - name: Dogfood (Guardana scans its own source)
         run: uv run guardana scan packages --profile scripts/dogfood.yaml
 
+      - name: Verify exact application source HEAD
+        run: test "$(git rev-parse HEAD)" = "79124bf4b3e38028fa7e3bc0b710a0b4528097d6"
+
   images:
     # The images are built on every push, not first at the tag. An entrypoint, a
     # missing extra or a non-root user that cannot read the mounted volume are
     # failure modes no Python test can see, and finding them while cutting a
     # release is finding them at the worst possible moment.
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: 79124bf4b3e38028fa7e3bc0b710a0b4528097d6
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -133,6 +142,9 @@ jobs:
       - name: Build both images and run them
         run: uv run --no-project python scripts/image_smoke.py
 
+      - name: Verify exact application source HEAD
+        run: test "$(git rev-parse HEAD)" = "79124bf4b3e38028fa7e3bc0b710a0b4528097d6"
+
   clean-install:
     # Every other job runs where everything is installed — including modules
     # nothing declares. This one runs where nothing is: the five distributions in
@@ -141,9 +153,13 @@ jobs:
     # unshippable (`ModuleNotFoundError: click` on every command), and the
     # release workflow runs the same script before it publishes anything.
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: 79124bf4b3e38028fa7e3bc0b710a0b4528097d6
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -162,15 +178,22 @@ jobs:
       - name: The SBOMs generate and describe what they claim to
         run: uv run --no-project python scripts/generate_sbom.py --check
 
+      - name: Verify exact application source HEAD
+        run: test "$(git rev-parse HEAD)" = "79124bf4b3e38028fa7e3bc0b710a0b4528097d6"
+
   example-plugin:
     # Proves the third-party extension story end-to-end: a package outside the
     # workspace registers rules through the `guardana.rules` entry point and is
     # discovered. Isolated on purpose — installing it into the main test env
     # would put `acme.*` rules into every discovery and skew the dogfood scan.
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: 79124bf4b3e38028fa7e3bc0b710a0b4528097d6
+          persist-credentials: false
 
       # Every step below runs `--no-cache`, so `UV_CACHE_DIR` is never created and
       # setup-uv's post step would fail saving it; the default `auto` still enables the cache.
@@ -269,3 +292,6 @@ jobs:
       # graded, with its own detector checked against a manifest that lies.
       - name: Scaffold a pack and prove it installs, validates and grades
         run: uv run python scripts/new_pack_check.py
+
+      - name: Verify exact application source HEAD
+        run: test "$(git rev-parse HEAD)" = "79124bf4b3e38028fa7e3bc0b710a0b4528097d6"
