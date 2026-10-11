@@ -58,7 +58,7 @@ class LinkResolver:
         resolved = (self.docs / page.relative.parent / target).resolve()
         if self.docs in resolved.parents or resolved == self.docs:
             return self._within_docs(page, href, resolved, fragment)
-        return self._outside_docs(page, href, resolved)
+        return self._outside_docs(page, href, resolved, fragment)
 
     def _within_docs(self, page: Page, href: str, resolved: Path, fragment: str) -> str:
         relative = resolved.relative_to(self.docs)
@@ -69,18 +69,18 @@ class LinkResolver:
         if resolved.exists():
             # A file under docs/ that is not a rendered page — a generated JSON, say.
             # It ships in the repository, so the repository is where it is readable.
-            return _github(resolved.relative_to(self.repo), resolved.is_dir())
+            return _github(resolved.relative_to(self.repo), resolved.is_dir(), fragment)
         self._problem(page, href, "points at a file that does not exist")
         return href
 
-    def _outside_docs(self, page: Page, href: str, resolved: Path) -> str:
+    def _outside_docs(self, page: Page, href: str, resolved: Path, fragment: str) -> str:
         if not resolved.exists():
             self._problem(page, href, "points at a file that does not exist")
             return href
         if self.repo not in resolved.parents:
             self._problem(page, href, "points outside the repository")
             return href
-        return _github(resolved.relative_to(self.repo), resolved.is_dir())
+        return _github(resolved.relative_to(self.repo), resolved.is_dir(), fragment)
 
     def _check_fragment(self, page: Page, href: str, target: Path, fragment: str) -> None:
         if not fragment or fragment in self.anchors.get(target, frozenset()):
@@ -96,6 +96,6 @@ class LinkResolver:
         self.problems.append(f"{page.relative.as_posix()} → {href!r} {why}")
 
 
-def _github(relative: Path, is_directory: bool) -> str:
+def _github(relative: Path, is_directory: bool, fragment: str) -> str:
     base = _TREE if is_directory else _BLOB
-    return base + relative.as_posix()
+    return base + relative.as_posix() + (f"#{fragment}" if fragment else "")
